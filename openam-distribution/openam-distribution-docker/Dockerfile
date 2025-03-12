@@ -11,6 +11,8 @@ ENV JAVA_OPTS="--add-exports java.base/sun.security.util=ALL-UNNAMED --add-expor
 ENV MEMORY="-server -XX:+UseG1GC -XX:-UseContainerSupport"
 ENV CATALINA_OPTS="$MEMORY -Dcom.iplanet.services.configpath=$OPENAM_DATA_DIR -Dcom.sun.identity.configuration.directory=$OPENAM_DATA_DIR"
 
+WORKDIR $CATALINA_HOME
+
 ARG VERSION @project_version@
 
 RUN apt-get update && apt-get install -y curl unzip 
@@ -33,7 +35,7 @@ RUN  apt-get remove -y --purge unzip \
  
 USER $OPENAM_USER
 
-EXPOSE 8080 
+EXPOSE 8080/tcp
 
 HEALTHCHECK --interval=30s --timeout=30s --start-period=1s --retries=3 CMD curl -v -L --fail http://localhost:8080/$OPENAM_PATH/isAlive.jsp || exit 1
 
