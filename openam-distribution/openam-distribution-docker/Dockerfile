@@ -1,6 +1,6 @@
 FROM tomcat:9-jre21
 
-MAINTAINER Open Identity Platform Community <open-identity-platform-openam@googlegroups.com>
+LABEL org.opencontainers.image.authors="Open Identity Platform Community"
 
 ENV CATALINA_HOME=/usr/local/tomcat
 ENV OPENAM_PATH="openam"
@@ -8,16 +8,14 @@ ENV OPENAM_USER="openam"
 ENV OPENAM_DATA_DIR="/usr/openam/config"
 ENV PATH="$CATALINA_HOME/bin:$PATH"
 ENV JAVA_OPTS="--add-exports java.base/sun.security.util=ALL-UNNAMED --add-exports java.security.jgss/sun.security.krb5=ALL-UNNAMED --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.tools.keytool=ALL-UNNAMED --add-exports java.xml/com.sun.org.apache.xerces.internal.dom=ALL-UNNAMED"
-ENV MEMORY="-server -XX:+UseG1GC -XX:-UseContainerSupport"
+ENV MEMORY="-server -XX:+UseG1GC -XX:+UseContainerSupport"
 ENV CATALINA_OPTS="$MEMORY -Dcom.iplanet.services.configpath=$OPENAM_DATA_DIR -Dcom.sun.identity.configuration.directory=$OPENAM_DATA_DIR"
 
-WORKDIR $CATALINA_HOME
+ARG VERSION
 
-ARG VERSION @project_version@
-
-RUN apt-get update && apt-get install -y curl unzip 
-
-RUN rm -rf  $CATALINA_HOME/webapps/* \
+RUN apt-get update && apt-get install -y curl unzip \
+ && rm -rf  $CATALINA_HOME/webapps/* \
+ && if [ -z "$VERSION" ] ; then VERSION="$(curl -i -o - --silent https://api.github.com/repos/OpenIdentityPlatform/OpenAM/releases/latest | grep -m1 "\"name\"" | cut -d\" -f4)"; fi \
  && curl -L https://github.com/OpenIdentityPlatform/OpenAM/releases/download/$VERSION/OpenAM-$VERSION.war --output $CATALINA_HOME/webapps/$OPENAM_PATH.war  \
  && mkdir /usr/openam \
  && curl -L https://github.com/OpenIdentityPlatform/OpenAM/releases/download/$VERSION/SSOConfiguratorTools-$VERSION.zip --output /usr/openam/ssoconfiguratortools.zip  \
@@ -29,11 +27,10 @@ RUN rm -rf  $CATALINA_HOME/webapps/* \
  && useradd -m -r -u 1001 -g root $OPENAM_USER \
  && install -d -o $OPENAM_USER $OPENAM_DATA_DIR \
  && chown -R $OPENAM_USER:root $CATALINA_HOME \
+ && apt-get remove -y --purge unzip \
+ && rm -rf /var/lib/apt/lists/*
  && sed -i '/<\/Host>/i \ \ \ \ <Valve className=\"org.apache.catalina.valves.RemoteIpValve\" httpServerPort=\"8080\" httpsServerPort=\"443\" />' $CATALINA_HOME/conf/server.xml
 
-RUN  apt-get remove -y --purge unzip \
- && rm -rf /var/lib/apt/lists/*
- 
 USER $OPENAM_USER
 
 EXPOSE 8080/tcp
