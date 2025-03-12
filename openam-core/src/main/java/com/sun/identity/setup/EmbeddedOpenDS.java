@@ -25,6 +25,7 @@
  * $Id: EmbeddedOpenDS.java,v 1.27 2010/01/15 01:22:39 goodearth Exp $
  *
  * Portions Copyrighted 2010-2016 ForgeRock AS.
+ * Portions Copyrighted 2017-2025 3A Systems, LLC.
  */
 
 package com.sun.identity.setup;
@@ -1320,7 +1321,7 @@ public class EmbeddedOpenDS {
 
     public static int rebuildIndex(Map map) throws Exception {
         int ret = 0;
-        shutdownServer("Rebuild index");
+        //shutdownServer("Rebuild index");
         Debug debug = Debug.getInstance(SetupConstants.DEBUG_NAME);
 
         String[] args = {
@@ -1329,8 +1330,9 @@ public class EmbeddedOpenDS {
                 "--baseDN",
                 (String) map.get(SetupConstants.CONFIG_VAR_ROOT_SUFFIX),
                 "--rebuildAll",
-                "--noPropertiesFile",
-                "--offline"};
+                "--noPropertiesFile"//,
+                //"--offline"
+        };
         OutputStream bos = new ByteArrayOutputStream();
         OutputStream boe = new ByteArrayOutputStream();
         TimeThread.start();
@@ -1352,7 +1354,7 @@ public class EmbeddedOpenDS {
             debug.message("EmbeddedOpenDS:rebuildIndex:Result:" +
                     outStr);
         }
-        startServer(getOpenDJBaseDir(map));
+        //startServer(getOpenDJBaseDir(map));
         return ret;
     }
 

@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y curl unzip \
  && install -d -o $OPENAM_USER $OPENAM_DATA_DIR \
  && chown -R $OPENAM_USER:root $CATALINA_HOME \
  && apt-get remove -y --purge unzip \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
  && sed -i '/<\/Host>/i \ \ \ \ <Valve className=\"org.apache.catalina.valves.RemoteIpValve\" httpServerPort=\"8080\" httpsServerPort=\"443\" />' $CATALINA_HOME/conf/server.xml
 
 USER $OPENAM_USER
