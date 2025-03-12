@@ -11,8 +11,6 @@ ENV JAVA_OPTS="--add-exports java.base/sun.security.util=ALL-UNNAMED --add-expor
 ENV MEMORY="-server -XX:+UseG1GC -XX:+UseContainerSupport"
 ENV CATALINA_OPTS="$MEMORY -Dcom.iplanet.services.configpath=$OPENAM_DATA_DIR -Dcom.sun.identity.configuration.directory=$OPENAM_DATA_DIR"
 
-WORKDIR /usr/openam
-
 ARG VERSION @project_version@
 
 RUN apt-get update && apt-get install -y curl unzip 
