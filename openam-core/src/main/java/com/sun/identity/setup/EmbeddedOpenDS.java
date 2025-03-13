@@ -1330,7 +1330,8 @@ public class EmbeddedOpenDS {
                 "--baseDN",
                 (String) map.get(SetupConstants.CONFIG_VAR_ROOT_SUFFIX),
                 "--rebuildAll",
-                "--noPropertiesFile"//,
+                "--noPropertiesFile",
+                "--trustAll"
                 //"--offline"
         };
         OutputStream bos = new ByteArrayOutputStream();
