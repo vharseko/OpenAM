@@ -1322,6 +1322,9 @@ public class EmbeddedOpenDS {
     public static int rebuildIndex(Map map) throws Exception {
         int ret = 0;
         //shutdownServer("Rebuild index");
+        if (!EmbeddedUtils.isRunning()) {
+            startServer(getOpenDJBaseDir(map)); //start when stopped
+        }
         Debug debug = Debug.getInstance(SetupConstants.DEBUG_NAME);
 
         String[] args = {
@@ -1329,7 +1332,8 @@ public class EmbeddedOpenDS {
                 getOpenDJConfigFile(map),
                 "--baseDN",
                 (String) map.get(SetupConstants.CONFIG_VAR_ROOT_SUFFIX),
-                "--rebuildAll",
+                //"--rebuildAll",
+                "--rebuildDegraded",
                 "--noPropertiesFile",
                 "--trustAll"
                 //"--offline"
