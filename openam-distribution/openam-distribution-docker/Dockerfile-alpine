@@ -7,7 +7,7 @@ ENV OPENAM_PATH="openam"
 ENV OPENAM_USER="openam"
 ENV OPENAM_DATA_DIR="/usr/openam/config"
 ENV PATH="$CATALINA_HOME/bin:$PATH"
-ENV MEMORY="-server -XX:+UseG1GC -XX:+UseContainerSupport -XX:+UseStringDeduplication"
+ENV MEMORY="-server -XX:+UseG1GC -XX:+UseContainerSupport -XX:MaxRAMPercentage=70.0 -XX:+UseStringDeduplication"
 ENV CATALINA_OPTS="$MEMORY -Dcom.iplanet.services.configpath=$OPENAM_DATA_DIR -Dcom.sun.identity.configuration.directory=$OPENAM_DATA_DIR"
 
 ARG VERSION
