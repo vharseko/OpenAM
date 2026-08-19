@@ -19,17 +19,12 @@
  */
 package org.openidentityplatform.openam.click.util;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -48,7 +43,6 @@ import java.util.Map;
 import java.util.MissingResourceException;
 import java.util.ResourceBundle;
 import java.util.TreeMap;
-import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import jakarta.servlet.ServletContext;
@@ -72,7 +66,6 @@ import org.openidentityplatform.openam.click.control.Form;
 
 import org.apache.click.util.Format;
 import org.apache.click.util.MessagesMap;
-import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.ClassUtils;
 import org.apache.commons.lang.StringUtils;
@@ -1705,95 +1698,11 @@ public class ClickUtils {
 
     }
 
-    /**
-     * Return an encoded version of the <code>Serializable</code> object. The object
-     * will be serialized, compressed and Base 64 encoded.
-     *
-     * @param object the object to encode
-     * @return a serialized, compressed and Base 64 string encoding of the
-     * given object
-     * @throws IOException if an I/O error occurs
-     * @throws IllegalArgumentException if the object parameter is null, or if
-     *      the object is not Serializable
-     */
-    public static String encode(Object object) throws IOException {
-        if (object == null) {
-            throw new IllegalArgumentException("null object parameter");
-        }
-        if (!(object instanceof Serializable)) {
-            throw new IllegalArgumentException("parameter not Serializable");
-        }
-
-        ByteArrayOutputStream bos = null;
-        GZIPOutputStream gos = null;
-        ObjectOutputStream oos = null;
-
-        try {
-            bos = new ByteArrayOutputStream();
-            gos = new GZIPOutputStream(bos);
-            oos = new ObjectOutputStream(gos);
-
-            oos.writeObject(object);
-
-        } finally {
-            close(oos);
-            close(gos);
-            close(bos);
-        }
-
-        Base64 base64 = new Base64();
-
-        try {
-            byte[] byteData = base64.encode(bos.toByteArray());
-
-            return new String(byteData);
-
-        } catch (Throwable t) {
-            String message =
-                    "error occurred Base64 encoding: " + object + " : " + t;
-            throw new IOException(message);
-        }
-    }
-
-    /**
-     * Return an object from the {@link #encode(Object)} string.
-     *
-     * @param string the encoded string
-     * @return an object from the encoded
-     * @throws ClassNotFoundException if the class could not be instantiated
-     * @throws IOException if an data I/O error occurs
-     */
-    public static Object decode(String string)
-            throws ClassNotFoundException, IOException {
-
-        Base64 base64 = new Base64();
-        byte[] byteData = null;
-
-        try {
-            byteData = base64.decode(string.getBytes());
-
-        } catch (Throwable t) {
-            String message =
-                    "error occurred Base64 decoding: " + string + " : " + t;
-            throw new IOException(message);
-        }
-
-        ByteArrayInputStream bis = null;
-        GZIPInputStream gis = null;
-        ObjectInputStream ois = null;
-        try {
-            bis = new ByteArrayInputStream(byteData);
-            gis = new GZIPInputStream(bis);
-            ois = new ObjectInputStream(gis);
-
-            return ois.readObject();
-
-        } finally {
-            close(ois);
-            close(gis);
-            close(bis);
-        }
-    }
+    // GHSA-7j4m-m698-57hp: encode(Object)/decode(String) used to round-trip a Serializable
+    // through Base64 + GZIP + ObjectInputStream.readObject(), with no ObjectInputFilter and no
+    // class allowlist. Their only user was HiddenField, on both sides, and no page in the product
+    // bound a HiddenField to a value class that reached them - so rather than filter a sink with
+    // no legitimate caller, the pair and the HiddenField branches that used them were removed.
 
     /**
      * Builds a cookie string containing a username and password.

@@ -19,11 +19,8 @@
  */
 package org.openidentityplatform.openam.click.control;
 
-import org.openidentityplatform.openam.click.util.ClickUtils;
 import org.openidentityplatform.openam.click.util.HtmlStringBuffer;
 
-import java.io.IOException;
-import java.io.Serializable;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Date;
@@ -42,13 +39,11 @@ import java.util.Date;
  * <li>Long</li>
  * <li>Short</li>
  * <li>String</li>
- * <li>Serializable</li>
  * </ul></blockquote>
  * <p>
- * Serializable non-primitive objects will be serialized, compressed and
- * Base64 encoded, using {@link ClickUtils#encode(Object)}
- * method, and decoded using the corresponding
- * {@link ClickUtils#decode(String)} method.
+ * Other value classes are not supported. Arbitrary Serializable objects used to be carried in
+ * the field as a Base64 encoded Java serialization stream and read back with
+ * ObjectInputStream.readObject(); that round-trip was removed under GHSA-7j4m-m698-57hp.
  *
  * <h2>HiddenField Example</h2>
  *
@@ -313,18 +308,13 @@ public class HiddenField extends Field {
                 long time = Long.parseLong(aValue);
                 setValueObject(new Date(time));
 
-            } else if (Serializable.class.isAssignableFrom(valueClass)) {
-                try {
-                    setValueObject(ClickUtils.decode(aValue));
-                } catch (ClassNotFoundException cnfe) {
-                    String msg =
-                        "could not decode value for hidden field: " + aValue;
-                    throw new RuntimeException(msg, cnfe);
-                } catch (IOException ioe) {
-                    String msg =
-                        "could not decode value for hidden field: " + aValue;
-                    throw new RuntimeException(msg, ioe);
-                }
+            // GHSA-7j4m-m698-57hp: a further branch used to hand any other Serializable value
+            // class to ClickUtils.decode(), which ran ObjectInputStream.readObject() over a
+            // request parameter with no filter. Nothing in the product bound such a field, so the
+            // branch and the encode/decode pair behind it were removed rather than filtered. Such
+            // a submission now takes the same path as any other value class this method does not
+            // parse: setValue(aValue) below, which refuses it because a String is not of the
+            // declared value class.
             } else {
                 setValue(aValue);
             }
@@ -364,15 +354,6 @@ public class HiddenField extends Field {
             String dateStr = String.valueOf(((Date) getValueObject()).getTime());
             buffer.appendAttributeEscaped("value", dateStr);
 
-        } else if (getValueObject() instanceof Serializable) {
-            try {
-                buffer.appendAttribute("value", ClickUtils.encode(getValueObject()));
-            } catch (IOException ioe) {
-                String msg =
-                    "could not encode value for hidden field: "
-                    + getValueObject();
-                throw new RuntimeException(msg, ioe);
-            }
         } else {
             buffer.appendAttributeEscaped("value", getValue());
         }
