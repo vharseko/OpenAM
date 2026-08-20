@@ -19,6 +19,8 @@ package org.openidentityplatform.openam.click.control;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,10 +28,12 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.util.Date;
 import java.util.zip.GZIPOutputStream;
 
 import org.apache.commons.codec.binary.Base64;
 import org.openidentityplatform.openam.click.util.ClickUtils;
+import org.openidentityplatform.openam.click.util.HtmlStringBuffer;
 import org.testng.annotations.Test;
 
 /**
@@ -40,6 +44,13 @@ import org.testng.annotations.Test;
  * encode/decode pair behind it were removed rather than filtered.
  */
 public class HiddenFieldTest {
+
+    /** A payload that must never reach the rendered markup unescaped. */
+    private static final String XSS = "\"><script>alert(1)</script>";
+
+    /** The same payload as {@code HtmlStringBuffer.appendAttributeEscaped()} writes it. */
+    private static final String XSS_ESCAPED =
+            "&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;";
 
     /**
      * Records whether Java deserialization ran. A gadget would use this moment to do something
@@ -54,6 +65,22 @@ public class HiddenFieldTest {
         private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
             in.defaultReadObject();
             deserialized = true;
+        }
+    }
+
+    /**
+     * A Serializable value class the control does not parse. Its rendering used to be intercepted
+     * by the removed {@code instanceof Serializable} arm, which wrote
+     * {@code ClickUtils.encode(...)} through the unescaped {@code appendAttribute}; it now falls
+     * to the escaping branch at the end of {@link HiddenField#render(HtmlStringBuffer)}.
+     */
+    public static class Unsupported implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public String toString() {
+            return XSS;
         }
     }
 
@@ -80,16 +107,16 @@ public class HiddenFieldTest {
         String payload = legacyEncoding(new Canary());
 
         SubmittedHiddenField field = new SubmittedHiddenField("canary", Canary.class, payload);
-        try {
-            field.bindRequestValue();
-        } catch (IllegalArgumentException expected) {
-            // The submission now takes the same path as any other value class the control does
-            // not parse: it is refused, because a String is not of the declared value class.
-        }
+
+        // The submission takes the same path as any other value class the control does not parse:
+        // it is refused, because a String is not of the declared value class. Asserting that the
+        // refusal happens keeps the canary assertion below from being satisfied by a bind that
+        // never reached the branch under test.
+        assertThrows(IllegalArgumentException.class, field::bindRequestValue);
 
         assertFalse(Canary.deserialized,
                 "the submitted serialization stream must not be deserialized");
-        assertFalse(field.getValueObject() instanceof Canary,
+        assertNull(field.getValueObject(),
                 "no object should have been reconstructed from the parameter");
     }
 
@@ -101,14 +128,13 @@ public class HiddenFieldTest {
         String payload = legacyEncoding(new Canary());
 
         SubmittedHiddenField field = new SubmittedHiddenField("canary", Serializable.class, payload);
-        try {
-            field.bindRequestValue();
-        } catch (IllegalArgumentException expected) {
-            // as above
-        }
+
+        assertThrows(IllegalArgumentException.class, field::bindRequestValue);
 
         assertFalse(Canary.deserialized,
                 "the submitted serialization stream must not be deserialized");
+        assertNull(field.getValueObject(),
+                "no object should have been reconstructed from the parameter");
     }
 
     /** The round trip has no caller left, and no longer exists to acquire one. */
@@ -144,6 +170,63 @@ public class HiddenFieldTest {
         SubmittedHiddenField empty = new SubmittedHiddenField("empty", Long.class, "");
         empty.bindRequestValue();
         assertNull(empty.getValueObject(), "an empty submission binds nothing");
+    }
+
+    /**
+     * The branch the removed {@code instanceof Serializable} arm used to intercept. This is the
+     * one rendering path this change moved, and the escaping call it lands on is what stands
+     * between a value class the control does not parse and its markup.
+     */
+    @Test
+    public void renderEscapesAValueClassTheControlDoesNotParse() {
+
+        HiddenField field = new HiddenField("unsupported", Unsupported.class);
+        field.setValueObject(new Unsupported());
+
+        HtmlStringBuffer buffer = new HtmlStringBuffer();
+        field.render(buffer);
+
+        assertFalse(buffer.toString().contains("<script>"),
+                "the value attribute must be escaped, was: " + buffer);
+        assertTrue(buffer.toString().contains("value=\"" + XSS_ESCAPED + "\""),
+                "unexpected rendering: " + buffer);
+    }
+
+    /** The same guarantee for String, the only value class a shipped page could reach. */
+    @Test
+    public void renderEscapesAStringValue() {
+
+        HiddenField text = new HiddenField("text", String.class);
+        text.setValue(XSS);
+
+        HtmlStringBuffer buffer = new HtmlStringBuffer();
+        text.render(buffer);
+
+        assertFalse(buffer.toString().contains("<script>"),
+                "the value attribute must be escaped, was: " + buffer);
+        assertTrue(buffer.toString().contains("value=\"" + XSS_ESCAPED + "\""),
+                "unexpected rendering: " + buffer);
+    }
+
+    /** The remaining rendering branches still write what they always wrote. */
+    @Test
+    public void renderWritesNumbersAndDatesUnchanged() {
+
+        HiddenField number = new HiddenField("number", Long.class);
+        number.setValueObject(42L);
+
+        HtmlStringBuffer numberBuffer = new HtmlStringBuffer();
+        number.render(numberBuffer);
+        assertTrue(numberBuffer.toString().contains("value=\"42\""),
+                "unexpected rendering: " + numberBuffer);
+
+        HiddenField date = new HiddenField("date", Date.class);
+        date.setValueObject(new Date(1234567890000L));
+
+        HtmlStringBuffer dateBuffer = new HtmlStringBuffer();
+        date.render(dateBuffer);
+        assertTrue(dateBuffer.toString().contains("value=\"1234567890000\""),
+                "unexpected rendering: " + dateBuffer);
     }
 
     /** Reproduces exactly what the removed {@code ClickUtils.encode(Object)} produced. */
